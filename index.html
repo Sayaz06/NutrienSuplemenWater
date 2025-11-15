@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nutrien + Suplemen + Air (PWA)</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2196f3">
+
+<style>
+body { font-family: Arial; margin: 20px; background: #f0f0f0; }
+h1,h2 { margin: 10px 0; }
+.section { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 5px #ccc; }
+.itemBox { background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+.row { display: flex; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
+input[type="text"], input[type="number"], textarea { padding: 5px; font-size: 14px; flex: 1; min-width:120px; }
+textarea { min-height:60px; flex-basis:100%; }
+button { padding: 5px 10px; border-radius:5px; background:#2196f3; color:white; border:none; cursor:pointer; }
+button.delete { background:red; }
+.detailBox { background:#e0f7ff; padding:8px; border-radius:5px; margin-top:5px; }
+.brandBox { background:#d9f2e6; padding:6px; border-radius:5px; margin-top:5px; }
+.warning { color:red; font-weight:bold; margin-top:5px; }
+.totalWater { margin-top:5px; font-weight:bold; }
+#jsonButtons { margin-bottom:20px; }
+</style>
+</head>
+<body>
+
+<h1>Nota Nutrien + Suplemen + Air</h1>
+
+<div id="jsonButtons">
+    <button onclick="exportJSON()">💾 Export JSON</button>
+    <input type="file" id="importFile" style="display:none" onchange="importJSON(event)">
+    <button onclick="document.getElementById('importFile').click()">📂 Import JSON</button>
+</div>
+
+<div id="nutrientSections" class="section"></div>
+<div id="sections" class="section"></div>
+
+<script>
+// ===== DATA =====
+let data = JSON.parse(localStorage.getItem("nutrientApp")) || {
+    nutrients: { vitamin: [], mineral: [], zat: [], trace: [] },
+    pagi: [], tengah: [], petang: [], malam: [], air: []
+};
+
+// ===== SAVE =====
+function save(){ localStorage.setItem("nutrientApp", JSON.stringify(data)); }
+
+// ===== IMPORT / EXPORT =====
+function exportJSON(){
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download="nutrien_suplemen.json"; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importJSON(event){
+    const file = event.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = e=>{
+        try{
+            const imported = JSON.parse(e.target.result);
+            data = imported;
+            save();
+            renderNutrients();
+            renderSections();
+            alert("Import berjaya!");
+        }catch(err){ alert("Fail JSON tidak sah!"); }
+    };
+    reader.readAsText(file);
+    event.target.value="";
+}
+
+// ===== RENDER NUTRIENTS =====
+function renderNutrients(){
+    const nutrientSections = { vitamin:"Vitamin", mineral:"Mineral", zat:"Zat", trace:"Mineral Jejak" };
+    const container = document.getElementById("nutrientSections");
+    container.innerHTML="";
+    for(let key in nutrientSections){
+        const secDiv = document.createElement("div"); secDiv.className="section";
+        const h2 = document.createElement("h2"); h2.textContent=nutrientSections[key]; secDiv.appendChild(h2);
+        const listDiv = document.createElement("div"); listDiv.id=key+"List"; secDiv.appendChild(listDiv);
+        const addBtn = document.createElement("button"); addBtn.textContent="+ Tambah "+nutrientSections[key];
+        addBtn.onclick = ()=>{ addNutrient(key); };
+        secDiv.appendChild(addBtn);
+        container.appendChild(secDiv);
+
+        const list = document.getElementById(key+"List");
+        list.innerHTML="";
+        data.nutrients[key].forEach((item,i)=>{
+            const div = document.createElement("div"); div.className="itemBox";
+
+            const row1 = document.createElement("div"); row1.className="row";
+            const inpName = document.createElement("input"); inpName.type="text"; inpName.placeholder="Nama "+key; inpName.value=item.nama||""; inpName.oninput=e=>{ item.nama=e.target.value; save(); };
+            const inpFood = document.createElement("input"); inpFood.type="text"; inpFood.placeholder="Contoh makanan"; inpFood.value=item.food||""; inpFood.oninput=e=>{ item.food=e.target.value; save(); };
+            row1.append(inpName,inpFood);
+
+            const row2 = document.createElement("div"); row2.className="row";
+            const txtFunc = document.createElement("textarea"); txtFunc.placeholder="Fungsi / Kelebihan"; txtFunc.rows=3; txtFunc.value=item.func||""; txtFunc.oninput=e=>{ item.func=e.target.value; save(); };
+            const txtNoEat = document.createElement("textarea"); txtNoEat.placeholder="Tidak boleh dimakan oleh"; txtNoEat.rows=3; txtNoEat.value=item.noEat||""; txtNoEat.oninput=e=>{ item.noEat=e.target.value; save(); };
+            row2.append(txtFunc,txtNoEat);
+
+            const row3 = document.createElement("div"); row3.className="row";
+            const chkDone = document.createElement("input"); chkDone.type='checkbox'; chkDone.checked=item.done||false;
+            chkDone.onchange = e=>{ item.done=e.target.checked; save(); renderNutrients(); };
+            const label = document.createElement("label"); label.appendChild(chkDone); label.append("Sudah Cari Suplemen");
+            const delBtn = document.createElement("button"); delBtn.className="delete"; delBtn.textContent="X"; delBtn.onclick=()=>{ data.nutrients[key].splice(i,1); save(); renderNutrients(); };
+            row3.append(label,delBtn);
+
+            div.append(row1,row2,row3);
+
+            if(item.done){
+                const detailBox = document.createElement("div"); detailBox.className="detailBox";
+                const brandContainer = document.createElement("div"); brandContainer.className="brandContainer"; detailBox.appendChild(brandContainer);
+                const addBrandBtn = document.createElement("button"); addBrandBtn.textContent="+ Tambah Jenama"; addBrandBtn.onclick = ()=>{ item.brands=item.brands||[]; item.brands.push({brand:"",product:"",where:"",country:"",notes:""}); save(); renderNutrients(); };
+                detailBox.appendChild(addBrandBtn); div.appendChild(detailBox);
+
+                (item.brands||[]).forEach((b,j)=>{
+                    const bDiv = document.createElement("div"); bDiv.className="brandBox";
+                    const rowB = document.createElement("div"); rowB.className="row";
+                    ['brand','product','where','country'].forEach(field=>{
+                        const inp = document.createElement('input'); inp.type='text'; inp.placeholder=field; inp.value=b[field]; inp.oninput=e=>{ b[field]=e.target.value; save(); };
+                        rowB.appendChild(inp);
+                    });
+                    const txtNotes = document.createElement('textarea'); txtNotes.placeholder="Ingredients / Notes"; txtNotes.value=b.notes; txtNotes.oninput=e=>{ b.notes=e.target.value; save(); };
+                    const delB = document.createElement('button'); delB.className='delete'; delB.textContent='X'; delB.onclick=()=>{ item.brands.splice(j,1); save(); renderNutrients(); };
+                    bDiv.append(rowB,txtNotes,delB);
+                    brandContainer.appendChild(bDiv);
+                });
+            }
+
+            list.appendChild(div);
+        });
+    }
+}
+
+// ===== RENDER SUPPLEMEN & AIR =====
+function renderSections(){
+    const sections = {pagi:"Suplemen Pagi",tengah:"Suplemen Tengah Hari",petang:"Suplemen Petang",malam:"Suplemen Malam",air:"Air (ml)"};
+    const container = document.getElementById("sections"); container.innerHTML="";
+    for(let key in sections){
+        const secDiv = document.createElement("div"); secDiv.className="section";
+        const h2 = document.createElement("h2"); h2.textContent=sections[key]; secDiv.appendChild(h2);
+        const listDiv = document.createElement("div"); listDiv.id=key+"List"; secDiv.appendChild(listDiv);
+        const addBtn = document.createElement("button"); addBtn.textContent=key==='air'?"+ Tambah Air":"+ Tambah Suplemen";
+        addBtn.onclick = ()=>{ addItem(key); };
+        secDiv.appendChild(addBtn);
+
+        if(key==='air'){ const totalDiv = document.createElement("div"); totalDiv.id="totalAir"; totalDiv.className="totalWater"; secDiv.appendChild(totalDiv); }
+
+        container.appendChild(secDiv);
+
+        const list = document.getElementById(key+"List"); list.innerHTML="";
+        data[key].forEach((item,i)=>{
+            const div = document.createElement("div"); div.className="itemBox";
+            const row = document.createElement("div"); row.className="row";
+
+            if(key!=='air'){
+                const inpName = document.createElement('input'); inpName.type='text'; inpName.placeholder='Nama Suplemen'; inpName.value=item.nama||''; inpName.oninput=e=>{ item.nama=e.target.value; save(); };
+                const inpDos = document.createElement('input'); inpDos.type='text'; inpDos.placeholder='Dos'; inpDos.value=item.dos||''; inpDos.oninput=e=>{ item.dos=e.target.value; save(); };
+                const chkOut = document.createElement('input'); chkOut.type='checkbox'; chkOut.checked=item.outOfStock||false; chkOut.onchange=e=>{ item.outOfStock=e.target.checked; save(); renderSections(); };
+                row.append(inpName,inpDos,chkOut);
+            }else{
+                const inpML = document.createElement('input'); inpML.type='number'; inpML.placeholder='ml'; inpML.value=item.ml||0; inpML.oninput=e=>{ item.ml=e.target.value; updateTotalAir(); save(); };
+                row.appendChild(inpML);
+            }
+            const chkDone = document.createElement('input'); chkDone.type='checkbox'; chkDone.checked=item.done||false; chkDone.onchange=e=>{ item.done=e.target.checked; updateTotalAir(); save(); renderSections(); };
+            const delBtn = document.createElement('button'); delBtn.className='delete'; delBtn.textContent='X'; delBtn.onclick=()=>{ data[key].splice(i,1); save(); renderSections(); };
+            row.append(chkDone,delBtn);
+            div.appendChild(row);
+
+            if(item.outOfStock && key!=='air'){ const warn = document.createElement('div'); warn.className='warning'; warn.textContent='Suplemen kehabisan'; div.appendChild(warn); }
+
+            list.appendChild(div);
+        });
+    }
+    updateTotalAir();
+}
+
+// ===== ADD ITEM =====
+function addNutrient(type){ data.nutrients[type].push({nama:'',food:'',func:'',noEat:'',done:false,brands:[]}); save(); renderNutrients(); }
+function addItem(section){ if(section==='air'){ data.air.push({ml:0,done:false}); } else{ data[section].push({nama:'',dos:'',done:false,outOfStock:false}); } save(); renderSections(); }
+function updateTotalAir(){ let t=0; data.air.forEach(x=>{ if(x.done && Number(x.ml)>0) t+=Number(x.ml); }); const el=document.getElementById('totalAir'); if(el) el.textContent="Jumlah air diminum: "+t+" ml"; }
+
+// ===== INIT =====
+renderNutrients();
+renderSections();
+
+// ===== SERVICE WORKER =====
+if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(()=>console.log("SW registered")).catch(err=>console.log(err));
+}
+</script>
+
+</body>
+</html>
